@@ -53,10 +53,6 @@ const generateId = () => {
   return Math.floor(Math.random() * (maxFloored - minCeiled + 1) + minCeiled);
 }
 
-app.get('/', (request, response) => {
-  response.send('Phonebook API')
-})
-
 app.get('/info', (request, response) => {
   const personCount = persons.length
   const time = new Date()
