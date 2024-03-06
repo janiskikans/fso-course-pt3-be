@@ -12,7 +12,7 @@ app.use(express.static('dist'))
 app.use(express.json())
 app.use(cors())
 
-morgan.token('body', function (req, res) { return JSON.stringify(req.body)})
+morgan.token('body', function (req) { return JSON.stringify(req.body)})
 app.use(morgan(function (tokens, req, res) {
   return [
     tokens.method(req, res),
@@ -30,7 +30,7 @@ const getPersonByName = async (name) => Person.findOne({ name })
 app.get('/info', async (request, response) => {
   const personCount = await Person.countDocuments({})
   const time = new Date()
-  
+
   response.send(`<p>Phonebook has info for ${personCount} people</p><p>${time.toString()}</p>`)
 })
 
@@ -88,11 +88,11 @@ app.put('/api/persons/:id', async (request, response, next) => {
   }
 
   try {
-    updatedPerson = await Person.findByIdAndUpdate(
+    const updatedPerson = await Person.findByIdAndUpdate(
       request.params.id,
       { number: body.number },
       { new: true, runValidators: true, context: 'query' }
-    );
+    )
 
     return response.json(updatedPerson)
   } catch (error) {
