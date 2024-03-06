@@ -38,7 +38,7 @@ app.get('/api/persons', (request, response) => {
   Person.find({}).then(persons => response.json(persons))
 })
 
-app.post('/api/persons', async (request, response) => {
+app.post('/api/persons', async (request, response, next) => {
   const body = request.body
   if (!body.name) {
     return response.status(400).json({ error: 'name missing' })
@@ -58,7 +58,10 @@ app.post('/api/persons', async (request, response) => {
     number: body.number,
   })
 
-  person.save().then(newPerson => response.json(newPerson))
+  person
+    .save()
+    .then(newPerson => response.json(newPerson))
+    .catch(error => next(error))
 })
 
 app.get('/api/persons/:id', async (request, response, next) => {
@@ -88,7 +91,7 @@ app.put('/api/persons/:id', async (request, response, next) => {
     updatedPerson = await Person.findByIdAndUpdate(
       request.params.id,
       { number: body.number },
-      { new: true }
+      { new: true, runValidators: true, context: 'query' }
     );
 
     return response.json(updatedPerson)
