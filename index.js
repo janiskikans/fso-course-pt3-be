@@ -1,12 +1,16 @@
+require('dotenv').config()
+
 const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
+const errorHandler = require('./middleware/errorHandler')
 
 const app = express()
+const Person = require('./models/person')
 
-app.use(cors())
-app.use(express.json())
 app.use(express.static('dist'))
+app.use(express.json())
+app.use(cors())
 
 morgan.token('body', function (req, res) { return JSON.stringify(req.body)})
 app.use(morgan(function (tokens, req, res) {
@@ -20,53 +24,22 @@ app.use(morgan(function (tokens, req, res) {
   ].join(' ')
 }))
 
-let persons = [
-  { 
-    "id": 1,
-    "name": "Arto Hellas", 
-    "number": "040-123456"
-  },
-  { 
-    "id": 2,
-    "name": "Ada Lovelace", 
-    "number": "39-44-5323523"
-  },
-  { 
-    "id": 3,
-    "name": "Dan Abramov", 
-    "number": "12-43-234345"
-  },
-  { 
-    "id": 4,
-    "name": "Mary Poppendieck", 
-    "number": "39-23-6423122"
-  }
-]
+const getPersonById = async (id) => Person.findById(id)
+const getPersonByName = async (name) => Person.findOne({ name })
 
-const getPersonById = id => persons.find(person => person.id === id)
-const getPersonByName = name => persons.find(person => person.name === name)
-
-const generateId = () => {
-  const minCeiled = Math.ceil(1)
-  const maxFloored = Math.floor(100_000)
-
-  return Math.floor(Math.random() * (maxFloored - minCeiled + 1) + minCeiled);
-}
-
-app.get('/info', (request, response) => {
-  const personCount = persons.length
+app.get('/info', async (request, response) => {
+  const personCount = await Person.countDocuments({})
   const time = new Date()
-
+  
   response.send(`<p>Phonebook has info for ${personCount} people</p><p>${time.toString()}</p>`)
 })
 
 app.get('/api/persons', (request, response) => {
-  response.json(persons)
+  Person.find({}).then(persons => response.json(persons))
 })
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', async (request, response) => {
   const body = request.body
-
   if (!body.name) {
     return response.status(400).json({ error: 'name missing' })
   }
@@ -75,44 +48,62 @@ app.post('/api/persons', (request, response) => {
     return response.status(400).json({ error: 'number missing' })
   }
 
-  const existingPerson = getPersonByName(body.name)
+  const existingPerson = await getPersonByName(body.name)
   if (existingPerson) {
     return response.status(400).json({ error: 'name must be unique' })
   }
 
-  const person = {
-    id: generateId(),
+  const person = new Person({
     name: body.name,
     number: body.number,
-  }
+  })
 
-  persons = persons.concat(person)
-
-  response.json(person)
+  person.save().then(newPerson => response.json(newPerson))
 })
 
-app.get('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id)
+app.get('/api/persons/:id', async (request, response, next) => {
+  try {
+    const person = await getPersonById(request.params.id)
+    if (!person) {
+      return response.status(404).end()
+    }
 
-  const person = getPersonById(id)
-  if (!person) {
-    return response.status(404).end()
+    return response.json(person)
+  } catch (error) {
+    next(error)
   }
-
-  return response.json(person)
 })
 
-app.delete('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id)
-
-  const person = getPersonById(id)
-  if (!person) {
-    return response.status(404).end()
+app.put('/api/persons/:id', async (request, response, next) => {
+  const body = request.body
+  if (!body.name) {
+    return response.status(400).json({ error: 'name missing' })
   }
 
-  persons = persons.filter(person => person.id !== id)
-  response.status(204).json(person)
+  if (!body.number) {
+    return response.status(400).json({ error: 'number missing' })
+  }
+
+  try {
+    updatedPerson = await Person.findByIdAndUpdate(
+      request.params.id,
+      { number: body.number },
+      { new: true }
+    );
+
+    return response.json(updatedPerson)
+  } catch (error) {
+    next(error)
+  }
 })
+
+app.delete('/api/persons/:id', async (request, response, next) => {
+  Person.findByIdAndDelete(request.params.id)
+    .then(person => response.status(204).json(person))
+    .catch(error => next(error))
+})
+
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
